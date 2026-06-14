@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Invoicer">
+<title>Invoice Generator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; background: #f2f2f2; font-family: 'Inter', sans-serif; }
+  input, textarea, select {
+    -webkit-appearance: none; appearance: none;
+    font-size: 16px;
+    font-family: inherit;
+  }
+  input[type="date"] { -webkit-appearance: none; }
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-thumb { background: #ddd; border-radius: 2px; }
+
+  #app { display: flex; flex-direction: column; min-height: 100vh; }
+
+  #header {
+    background: #fff;
+    border-bottom: 1px solid #ebebeb;
+    padding: 16px 20px 0;
+    position: sticky; top: 0; z-index: 20;
+  }
+  #header h1 { margin: 0 0 14px; font-size: 17px; font-weight: 600; letter-spacing: -0.3px; color: #111; }
+  #tabs { display: flex; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  #tabs::-webkit-scrollbar { display: none; }
+  .tab-btn {
+    background: none; border: none; cursor: pointer; font-family: inherit;
+    font-size: 14px; color: #aaa; padding: 8px 16px 12px;
+    border-bottom: 2px solid transparent; white-space: nowrap;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .tab-btn.active { color: #111; font-weight: 600; border-bottom-color: #111; }
+
+  #content { flex: 1; padding: 20px 16px 140px; overflow-y: auto; }
+  #content.preview-tab { padding: 0 0 140px; }
+
+  .section-title {
+    font-size: 11px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.1em; color: #bbb; margin: 0 0 14px;
+  }
+  .section { margin-bottom: 32px; }
+  .field-group { display: flex; flex-direction: column; gap: 10px; }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field label { font-size: 11px; font-weight: 600; color: #999; text-transform: uppercase; letter-spacing: 0.07em; }
+  .field input, .field select, .field textarea {
+    border: 1px solid #e0e0e0; border-radius: 10px;
+    padding: 12px 14px; font-size: 16px; color: #111;
+    background: #fafafa; outline: none; width: 100%;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus { border-color: #111; }
+  .field textarea { resize: vertical; line-height: 1.5; }
+  .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  .item-card { background: #fafafa; border: 1px solid #ebebeb; border-radius: 12px; padding: 14px; margin-bottom: 10px; }
+  .item-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .item-label { font-size: 11px; font-weight: 600; color: #bbb; text-transform: uppercase; letter-spacing: 0.07em; }
+  .item-remove { background: none; border: none; color: #ccc; font-size: 22px; cursor: pointer; padding: 0; line-height: 1; }
+  .item-desc { width: 100%; margin-bottom: 10px; border: 1px solid #e0e0e0; border-radius: 10px; padding: 12px 14px; background: #fff; outline: none; font-size: 16px; font-family: inherit; }
+  .item-desc:focus { border-color: #111; }
+  .item-row { display: grid; grid-template-columns: 72px 1fr auto; gap: 8px; align-items: center; }
+  .item-row input { border: 1px solid #e0e0e0; border-radius: 10px; padding: 12px 10px; background: #fff; outline: none; width: 100%; font-size: 16px; }
+  .item-row input:focus { border-color: #111; }
+  .item-amount { font-family: 'DM Mono', monospace; font-size: 13px; color: #555; white-space: nowrap; min-width: 70px; text-align: right; }
+  #add-item-btn { width: 100%; background: none; border: 1.5px dashed #ddd; border-radius: 12px; padding: 14px; color: #aaa; font-size: 15px; cursor: pointer; font-family: inherit; }
+
+  .preview-wrap { padding: 16px; }
+  .preview-card { background: #fff; border-radius: 14px; padding: 20px; margin-bottom: 12px; border: 1px solid #ebebeb; }
+  .p-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #aaa; margin-bottom: 3px; }
+  .p-value { font-size: 14px; color: #111; }
+  .p-mono { font-family: 'DM Mono', monospace; }
+  .p-sub { font-size: 12px; color: #888; }
+  .p-divider { border: none; border-top: 1px solid #f0f0f0; margin: 12px 0; }
+  .total-row { display: flex; justify-content: space-between; align-items: center; }
+  .total-row.grand { font-size: 17px; font-weight: 600; border-top: 1.5px solid #111; padding-top: 12px; margin-top: 10px; }
+
+  /* PDF ready banner */
+  #pdf-banner {
+    display: none;
+    margin: 16px 16px 0;
+    background: #f0fff4; border: 1.5px solid #34d399;
+    border-radius: 14px; padding: 16px 20px;
+    align-items: center; justify-content: space-between; gap: 12px;
+  }
+  #pdf-banner.visible { display: flex; }
+  #pdf-banner-text { font-weight: 600; color: #065f46; font-size: 15px; }
+  #pdf-banner-sub { font-size: 13px; color: #047857; margin-top: 2px; }
+  #pdf-open-btn {
+    background: #111; color: #fff; border: none; border-radius: 10px;
+    padding: 10px 18px; font-size: 14px; font-weight: 600; cursor: pointer;
+    font-family: inherit; white-space: nowrap; text-decoration: none;
+    display: inline-block;
+  }
+
+  #bottom-bar {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: #fff; border-top: 1px solid #ebebeb;
+    padding: 12px 16px;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom));
+    display: flex; gap: 10px; z-index: 20;
+  }
+  #next-btn { flex: 1; padding: 14px; background: #f5f5f5; color: #111; border: none; border-radius: 12px; font-size: 15px; font-weight: 500; cursor: pointer; font-family: inherit; }
+  #generate-btn { padding: 14px 20px; background: #111; color: #fff; border: none; border-radius: 12px; font-size: 15px; font-weight: 500; cursor: pointer; font-family: inherit; transition: background 0.15s; }
+  #generate-btn:disabled { background: #888; cursor: not-allowed; }
+  #generate-btn.full { flex: 1; }
+
+  .preset-btn { display: inline-block; background: #f0f0f0; border: 1.5px solid #e0e0e0; border-radius: 20px; padding: 7px 14px; font-size: 13px; font-weight: 500; color: #333; cursor: pointer; font-family: inherit; }
+  .preset-btn:active { background: #e0e0e0; }
+
+  /* Hidden A4 render target */
+  #invoice-preview {
+    position: fixed; left: -9999px; top: 0;
+    width: 595px; min-height: 842px;
+    padding: 48px 52px; background: #fff;
+    font-family: 'Inter', sans-serif; font-size: 13px;
+    line-height: 1.5; color: #111;
+    pointer-events: none; z-index: -1;
+  }
+  .inv-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 44px; }
+  .inv-company { font-size: 22px; font-weight: 600; letter-spacing: -0.5px; margin-bottom: 2px; }
+  .inv-small { color: #666; font-size: 12px; }
+  .inv-title { font-size: 28px; font-weight: 300; letter-spacing: -1px; text-align: right; }
+  .inv-num { font-family: 'DM Mono', monospace; font-size: 12px; color: #555; margin-top: 4px; text-align: right; }
+  .inv-meta { display: flex; gap: 32px; margin-bottom: 40px; }
+  .inv-meta-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #999; margin-bottom: 6px; }
+  .inv-meta-val { font-family: 'DM Mono', monospace; font-size: 12px; }
+  .inv-bill { margin-left: auto; text-align: right; }
+  .inv-bill-name { font-weight: 500; }
+  .inv-rule { border: none; border-top: 1.5px solid #111; margin: 0; }
+  .inv-table-head { display: grid; grid-template-columns: 1fr 80px 80px 90px; gap: 8px; padding: 10px 0; border-bottom: 1px solid #e5e5e5; }
+  .inv-th { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #999; }
+  .inv-th.right { text-align: right; }
+  .inv-row { display: grid; grid-template-columns: 1fr 80px 80px 90px; gap: 8px; padding: 11px 0; border-bottom: 1px solid #f0f0f0; }
+  .inv-cell { color: #222; }
+  .inv-cell.right { text-align: right; font-family: 'DM Mono', monospace; font-size: 12px; }
+  .inv-totals { margin-top: 24px; display: flex; justify-content: flex-end; }
+  .inv-totals-inner { width: 220px; }
+  .inv-subtotal { display: flex; justify-content: space-between; padding: 5px 0; color: #555; font-size: 12px; }
+  .inv-subtotal span:last-child { font-family: 'DM Mono', monospace; }
+  .inv-total { border-top: 1.5px solid #111; margin-top: 8px; padding-top: 10px; display: flex; justify-content: space-between; font-weight: 600; font-size: 15px; }
+  .inv-total span:last-child { font-family: 'DM Mono', monospace; }
+  .inv-notes { margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e5e5; }
+  .inv-notes-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #999; margin-bottom: 6px; }
+  .inv-notes-body { color: #555; font-size: 12px; line-height: 1.6; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+
+<!-- Hidden A4 invoice for PDF rendering -->
+<div id="invoice-preview">
+  <div class="inv-header">
+    <div>
+      <div class="inv-company" id="r-sender-name"></div>
+      <div class="inv-small" id="r-sender-email"></div>
+      <div class="inv-small" id="r-sender-address"></div>
+      <div class="inv-small" id="r-sender-citycountry"></div>
+    </div>
+    <div>
+      <div class="inv-title">INVOICE</div>
+      <div class="inv-num" id="r-inv-number"></div>
+    </div>
+  </div>
+  <div class="inv-meta">
+    <div>
+      <div class="inv-meta-label">Issued</div>
+      <div class="inv-meta-val" id="r-inv-date"></div>
+    </div>
+    <div>
+      <div class="inv-meta-label">Due</div>
+      <div class="inv-meta-val" id="r-inv-due"></div>
+    </div>
+    <div class="inv-bill">
+      <div class="inv-meta-label">Bill To</div>
+      <div class="inv-bill-name" id="r-client-name"></div>
+      <div class="inv-small" id="r-client-email"></div>
+      <div class="inv-small" id="r-client-address"></div>
+      <div class="inv-small" id="r-client-citycountry"></div>
+    </div>
+  </div>
+  <hr class="inv-rule">
+  <div class="inv-table-head">
+    <div class="inv-th">Description</div>
+    <div class="inv-th right">Qty</div>
+    <div class="inv-th right">Rate</div>
+    <div class="inv-th right">Amount</div>
+  </div>
+  <div id="r-items"></div>
+  <div class="inv-totals">
+    <div class="inv-totals-inner">
+      <div class="inv-subtotal"><span>Subtotal</span><span id="r-subtotal"></span></div>
+      <div class="inv-subtotal" id="r-tax-row" style="display:none"><span id="r-tax-label"></span><span id="r-tax-amount"></span></div>
+      <div class="inv-total"><span>Total</span><span id="r-total"></span></div>
+    </div>
+  </div>
+  <div class="inv-notes" id="r-notes-section" style="display:none">
+    <div class="inv-notes-label">Notes</div>
+    <div class="inv-notes-body" id="r-notes-body"></div>
+  </div>
+</div>
+
+<!-- App -->
+<div id="app">
+  <div id="header">
+    <h1>Invoice Generator</h1>
+    <div id="tabs">
+      <button class="tab-btn active" data-tab="0">From</button>
+      <button class="tab-btn" data-tab="1">Client</button>
+      <button class="tab-btn" data-tab="2">Invoice</button>
+      <button class="tab-btn" data-tab="3">Items</button>
+      <button class="tab-btn" data-tab="4">Preview</button>
+    </div>
+  </div>
+
+  <div id="content">
+
+    <!-- TAB 0: From -->
+    <div class="tab-panel" data-panel="0">
+      <div class="section">
+        <div class="section-title">Your Details</div>
+        <div class="field-group">
+          <div class="field"><label>Name / Company</label><input id="sender-name" value="Stefan Karkosch" autocomplete="organization"></div>
+          <div class="field"><label>Email</label><input id="sender-email" type="email" placeholder="you@company.com" autocomplete="email"></div>
+          <div class="field"><label>Address</label><input id="sender-address" value="Zelgstrasse 36" autocomplete="street-address"></div>
+          <div class="row-2">
+            <div class="field"><label>City</label><input id="sender-city" value="8222 Beringen" autocomplete="address-level2"></div>
+            <div class="field"><label>Country</label><input id="sender-country" value="Switzerland" autocomplete="country-name"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 1: Client -->
+    <div class="tab-panel" data-panel="1" style="display:none">
+      <div class="section">
+        <div class="section-title">Client Details</div>
+        <div style="margin-bottom:14px">
+          <div style="font-size:11px;font-weight:600;color:#bbb;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Presets</div>
+          <button class="preset-btn" id="preset-linnea">SY Linnea Aurora</button>
+        </div>
+        <div class="field-group">
+          <div class="field"><label>Client Name</label><input id="client-name" placeholder="Client or company"></div>
+          <div class="field"><label>Email</label><input id="client-email" type="email" placeholder="client@email.com"></div>
+          <div class="field"><label>Address</label><input id="client-address" placeholder="456 Client Ave"></div>
+          <div class="row-2">
+            <div class="field"><label>City</label><input id="client-city" placeholder="City"></div>
+            <div class="field"><label>Country</label><input id="client-country" placeholder="Country"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: Invoice -->
+    <div class="tab-panel" data-panel="2" style="display:none">
+      <div class="section">
+        <div class="section-title">Invoice Details</div>
+        <div class="field-group">
+          <div class="row-2">
+            <div class="field"><label>Invoice #</label><input id="inv-number" placeholder="001"></div>
+            <div class="field">
+              <label>Currency</label>
+              <select id="inv-currency">
+                <option>CHF</option><option>USD</option><option>EUR</option><option>GBP</option>
+                <option>CAD</option><option>AUD</option><option>JPY</option>
+                <option>INR</option><option>MXN</option><option>BRL</option>
+              </select>
+            </div>
+          </div>
+          <div class="row-2">
+            <div class="field"><label>Issue Date</label><input id="inv-date" type="date"></div>
+            <div class="field"><label>Due Date</label><input id="inv-due" type="date"></div>
+          </div>
+          <div class="field"><label>Tax %</label><input id="inv-tax" type="number" inputmode="decimal" placeholder="0" min="0" max="100"></div>
+          <div class="field"><label>Notes</label><textarea id="inv-notes" rows="5" placeholder="Payment terms, bank details…">Payable to
+Stefan Immanuel Karkosch
+BE04967205258531
+TRWIBEB1XXX</textarea></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: Items -->
+    <div class="tab-panel" data-panel="3" style="display:none">
+      <div class="section">
+        <div class="section-title">Line Items</div>
+        <div id="items-list"></div>
+        <button id="add-item-btn">+ Add item</button>
+      </div>
+    </div>
+
+    <!-- TAB 4: Preview -->
+    <div class="tab-panel" data-panel="4" style="display:none">
+      <div id="pdf-banner">
+        <div>
+          <div id="pdf-banner-text">✅ PDF Ready</div>
+          <div id="pdf-banner-sub">Tap to open — then tap Share to save</div>
+        </div>
+        <button id="pdf-open-btn">📄 Open PDF</button>
+      </div>
+      <div class="preview-wrap" id="mobile-preview"></div>
+    </div>
+
+  </div>
+
+  <div id="bottom-bar">
+    <button id="next-btn">Next →</button>
+    <button id="generate-btn">📄 Generate PDF</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+let items = [newItem()];
+let currentTab = 0;
+let lastBlobUrl = null;
+
+function newItem() {
+  return { id: Date.now() + Math.random(), description: '', qty: 1, rate: '' };
+}
+
+function fmt(val, currency) {
+  const n = parseFloat(val) || 0;
+  try { return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(n); }
+  catch { return n.toFixed(2); }
+}
+
+function get(id) { return document.getElementById(id); }
+function val(id) { const el = get(id); return el ? el.value.trim() : ''; }
+function escHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Tabs ────────────────────────────────────────────────────────
+function switchTab(n) {
+  currentTab = n;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', +b.dataset.tab === n));
+  document.querySelectorAll('.tab-panel').forEach(p => p.style.display = +p.dataset.panel === n ? '' : 'none');
+  get('content').className = n === 4 ? 'preview-tab' : '';
+  get('next-btn').style.display = n < 4 ? '' : 'none';
+  get('next-btn').textContent = n === 3 ? 'Preview' : 'Next →';
+  get('generate-btn').className = n === 4 ? 'full' : '';
+  if (n === 4) renderMobilePreview();
+}
+
+document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => switchTab(+b.dataset.tab)));
+get('next-btn').addEventListener('click', () => switchTab(Math.min(currentTab + 1, 4)));
+
+// ── Items ────────────────────────────────────────────────────────
+function renderItems() {
+  const list = get('items-list');
+  const currency = val('inv-currency') || 'CHF';
+  // Save focus state
+  const focused = document.activeElement;
+  const focusedId = focused ? focused.dataset.id : null;
+  const focusedKey = focused ? focused.dataset.key : null;
+  const focusedPos = focused ? focused.selectionStart : null;
+
+  list.innerHTML = '';
+  items.forEach((item, idx) => {
+    const amt = (parseFloat(item.qty) || 0) * (parseFloat(item.rate) || 0);
+    const div = document.createElement('div');
+    div.className = 'item-card';
+    div.innerHTML = `
+      <div class="item-header">
+        <span class="item-label">Item ${idx + 1}</span>
+        ${items.length > 1 ? `<button class="item-remove" data-id="${item.id}">×</button>` : ''}
+      </div>
+      <input class="item-desc" placeholder="Description" value="${escHtml(item.description)}" data-id="${item.id}" data-key="description">
+      <div class="item-row">
+        <input type="number" inputmode="decimal" min="1" placeholder="Qty" value="${item.qty}" data-id="${item.id}" data-key="qty">
+        <input type="number" inputmode="decimal" placeholder="Rate" value="${item.rate}" data-id="${item.id}" data-key="rate">
+        <div class="item-amount">${fmt(amt, currency)}</div>
+      </div>`;
+    list.appendChild(div);
+  });
+
+  list.querySelectorAll('[data-key]').forEach(el => {
+    el.addEventListener('change', e => {
+      const item = items.find(i => i.id == e.target.dataset.id);
+      if (item) { item[e.target.dataset.key] = e.target.value; renderItems(); }
+    });
+  });
+  list.querySelectorAll('.item-remove').forEach(btn => {
+    btn.addEventListener('click', () => {
+      items = items.filter(i => i.id != btn.dataset.id);
+      renderItems();
+    });
+  });
+}
+
+get('add-item-btn').addEventListener('click', () => { items.push(newItem()); renderItems(); });
+renderItems();
+
+// ── Mobile Preview ───────────────────────────────────────────────
+function renderMobilePreview() {
+  const currency = val('inv-currency') || 'CHF';
+  const subtotal = items.reduce((s, i) => s + (parseFloat(i.qty)||0)*(parseFloat(i.rate)||0), 0);
+  const tax = parseFloat(val('inv-tax')) || 0;
+  const taxAmt = subtotal * tax / 100;
+  const total = subtotal + taxAmt;
+  const clientCity = [val('client-city'), val('client-country')].filter(Boolean).join(', ');
+
+  const itemsHtml = items.map((item, i) => {
+    const amt = (parseFloat(item.qty)||0)*(parseFloat(item.rate)||0);
+    return `<div style="display:flex;justify-content:space-between;align-items:flex-start;${i<items.length-1?'padding-bottom:10px;margin-bottom:10px;border-bottom:1px solid #f5f5f5':''}">
+      <div>
+        <div style="font-size:14px;color:#111">${escHtml(item.description) || '—'}</div>
+        <div style="font-size:12px;color:#aaa">${item.qty} × ${fmt(item.rate, currency)}</div>
+      </div>
+      <div style="font-family:'DM Mono',monospace;font-size:13px;font-weight:500">${fmt(amt, currency)}</div>
+    </div>`;
+  }).join('');
+
+  get('mobile-preview').innerHTML = `
+    <div class="preview-card" style="display:flex;justify-content:space-between;align-items:flex-start">
+      <div>
+        <div style="font-size:18px;font-weight:600;margin-bottom:2px">${escHtml(val('sender-name')) || '<span style="color:#ccc">Your Company</span>'}</div>
+        <div class="p-sub">${escHtml(val('sender-email'))}</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:13px;font-weight:300;color:#555;letter-spacing:.05em">INVOICE</div>
+        <div class="p-mono" style="font-size:13px">${val('inv-number') ? '#'+escHtml(val('inv-number')) : ''}</div>
+      </div>
+    </div>
+    <div class="preview-card">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:14px">
+        <div><div class="p-label">Issued</div><div class="p-value p-mono">${val('inv-date') || '—'}</div></div>
+        <div><div class="p-label">Due</div><div class="p-value p-mono">${val('inv-due') || '—'}</div></div>
+      </div>
+      <hr class="p-divider">
+      <div class="p-label">Bill To</div>
+      <div style="font-size:14px;font-weight:500">${escHtml(val('client-name')) || '—'}</div>
+      <div class="p-sub">${escHtml(val('client-email'))}</div>
+      ${val('client-address') ? `<div class="p-sub">${escHtml(val('client-address'))}</div>` : ''}
+      ${clientCity ? `<div class="p-sub">${escHtml(clientCity)}</div>` : ''}
+    </div>
+    <div class="preview-card">
+      <div class="p-label" style="margin-bottom:10px">Items</div>
+      ${itemsHtml}
+    </div>
+    <div class="preview-card">
+      <div class="total-row" style="font-size:13px;color:#666;padding:3px 0"><span>Subtotal</span><span class="p-mono">${fmt(subtotal, currency)}</span></div>
+      ${tax > 0 ? `<div class="total-row" style="font-size:13px;color:#666;padding:3px 0"><span>Tax (${tax}%)</span><span class="p-mono">${fmt(taxAmt, currency)}</span></div>` : ''}
+      <div class="total-row grand"><span>Total</span><span class="p-mono">${fmt(total, currency)}</span></div>
+    </div>
+    ${val('inv-notes') ? `<div class="preview-card"><div class="p-label">Notes</div><div style="font-size:13px;color:#555;line-height:1.6;margin-top:4px;white-space:pre-wrap">${escHtml(val('inv-notes'))}</div></div>` : ''}
+  `;
+}
+
+// ── Sync hidden A4 render target ─────────────────────────────────
+function syncRenderTarget() {
+  const currency = val('inv-currency') || 'CHF';
+  const subtotal = items.reduce((s, i) => s + (parseFloat(i.qty)||0)*(parseFloat(i.rate)||0), 0);
+  const tax = parseFloat(val('inv-tax')) || 0;
+  const taxAmt = subtotal * tax / 100;
+  const total = subtotal + taxAmt;
+
+  get('r-sender-name').textContent = val('sender-name');
+  get('r-sender-email').textContent = val('sender-email');
+  get('r-sender-address').textContent = val('sender-address');
+  get('r-sender-citycountry').textContent = [val('sender-city'), val('sender-country')].filter(Boolean).join(', ');
+  get('r-inv-number').textContent = val('inv-number') ? '#' + val('inv-number') : '';
+  get('r-inv-date').textContent = val('inv-date');
+  get('r-inv-due').textContent = val('inv-due');
+  get('r-client-name').textContent = val('client-name');
+  get('r-client-email').textContent = val('client-email');
+  get('r-client-address').textContent = val('client-address');
+  get('r-client-citycountry').textContent = [val('client-city'), val('client-country')].filter(Boolean).join(', ');
+
+  get('r-items').innerHTML = items.map(item => {
+    const amt = (parseFloat(item.qty)||0)*(parseFloat(item.rate)||0);
+    return `<div class="inv-row">
+      <div class="inv-cell">${escHtml(item.description)}</div>
+      <div class="inv-cell right">${item.qty}</div>
+      <div class="inv-cell right">${fmt(item.rate, currency)}</div>
+      <div class="inv-cell right">${fmt(amt, currency)}</div>
+    </div>`;
+  }).join('');
+
+  get('r-subtotal').textContent = fmt(subtotal, currency);
+  if (tax > 0) {
+    get('r-tax-row').style.display = '';
+    get('r-tax-label').textContent = `Tax (${tax}%)`;
+    get('r-tax-amount').textContent = fmt(taxAmt, currency);
+  } else {
+    get('r-tax-row').style.display = 'none';
+  }
+  get('r-total').textContent = fmt(total, currency);
+
+  const notes = val('inv-notes');
+  get('r-notes-section').style.display = notes ? '' : 'none';
+  if (notes) get('r-notes-body').textContent = notes;
+}
+
+// ── Generate PDF ─────────────────────────────────────────────────
+get('generate-btn').addEventListener('click', async () => {
+  const btn = get('generate-btn');
+  btn.disabled = true;
+  btn.textContent = 'Generating…';
+
+  // ✅ Open window SYNCHRONOUSLY before any await — this is the Safari iOS trick
+  // Safari blocks window.open() called after an await (treats it as a popup)
+  // Opening it here, in direct response to the tap, bypasses that restriction
+  const pdfWin = window.open('', '_blank');
+  if (pdfWin) {
+    pdfWin.document.write('<html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:-apple-system,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f5f5f5;color:#555;gap:12px}</style></head><body><div style="font-size:32px">⏳</div><p>Building your PDF…</p></body></html>');
+    pdfWin.document.close();
+  }
+
+  try {
+    syncRenderTarget();
+    await new Promise(r => setTimeout(r, 100));
+
+    const el = get('invoice-preview');
+    const canvas = await html2canvas(el, {
+      scale: 2, useCORS: true, backgroundColor: '#fff', logging: false
+    });
+
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ unit: 'pt', format: 'a4', orientation: 'portrait' });
+    const pdfW = pdf.internal.pageSize.getWidth();
+    const pdfH = (canvas.height / canvas.width) * pdfW;
+    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, pdfW, pdfH);
+
+    const filename = `invoice-${val('inv-number') || '001'}.pdf`;
+
+    // Clean up old blob URL
+    if (lastBlobUrl) URL.revokeObjectURL(lastBlobUrl);
+    const blob = pdf.output('blob');
+    lastBlobUrl = URL.createObjectURL(blob);
+
+    if (pdfWin) {
+      // Navigate the already-open window to the PDF
+      // On iOS Safari this triggers the native PDF viewer with Share button
+      pdfWin.location.href = lastBlobUrl;
+    }
+
+    // Also show banner with the same URL as fallback
+    get('pdf-open-btn').onclick = () => window.open(lastBlobUrl, '_blank');
+    get('pdf-banner').classList.add('visible');
+    switchTab(4);
+
+  } catch (e) {
+    if (pdfWin) pdfWin.close();
+    alert('PDF generation failed: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '📄 Generate PDF';
+  }
+});
+
+// ── Client presets ───────────────────────────────────────────────
+get('preset-linnea').addEventListener('click', () => {
+  get('client-name').value = 'SY Linnea Aurora';
+  get('client-email').value = '';
+  get('client-address').value = 'Captain Gilad';
+  get('client-city').value = '';
+  get('client-country').value = '';
+});
+
+// ── Init ─────────────────────────────────────────────────────────
+get('inv-date').value = new Date().toISOString().split('T')[0];
+switchTab(0);
+</script>
+</body>
+</html>
