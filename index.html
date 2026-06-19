@@ -115,10 +115,10 @@
   .preset-btn { display: inline-block; background: #f0f0f0; border: 1.5px solid #e0e0e0; border-radius: 20px; padding: 7px 14px; font-size: 13px; font-weight: 500; color: #333; cursor: pointer; font-family: inherit; }
   .preset-btn:active { background: #e0e0e0; }
 
-  /* Hidden A4 render target */
+  /* Hidden render target — no fixed height, grows with content */
   #invoice-preview {
     position: fixed; left: -9999px; top: 0;
-    width: 595px; min-height: 842px;
+    width: 595px;
     padding: 48px 52px; background: #fff;
     font-family: 'Inter', sans-serif; font-size: 13px;
     line-height: 1.5; color: #111;
@@ -526,9 +526,28 @@ get('generate-btn').addEventListener('click', async () => {
 
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF({ unit: 'pt', format: 'a4', orientation: 'portrait' });
-    const pdfW = pdf.internal.pageSize.getWidth();
-    const pdfH = (canvas.height / canvas.width) * pdfW;
-    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, pdfW, pdfH);
+    const pdfW = pdf.internal.pageSize.getWidth();   // 595.28 pt
+    const pdfH = pdf.internal.pageSize.getHeight();  // 841.89 pt
+
+    // Scale: canvas pixels -> PDF points
+    const scale = pdfW / canvas.width;
+    // How many canvas px fit in one A4 page
+    const pageHeightPx = Math.floor(pdfH / scale);
+    const totalPages = Math.ceil(canvas.height / pageHeightPx);
+
+    for (let page = 0; page < totalPages; page++) {
+      if (page > 0) pdf.addPage();
+      const srcY = page * pageHeightPx;
+      const srcH = Math.min(pageHeightPx, canvas.height - srcY);
+      const pageCanvas = document.createElement('canvas');
+      pageCanvas.width = canvas.width;
+      pageCanvas.height = srcH;
+      pageCanvas.getContext('2d').drawImage(
+        canvas, 0, srcY, canvas.width, srcH,
+        0, 0, canvas.width, srcH
+      );
+      pdf.addImage(pageCanvas.toDataURL('image/png'), 'PNG', 0, 0, pdfW, srcH * scale);
+    }
 
     const filename = `invoice-${val('inv-number') || '001'}.pdf`;
 
