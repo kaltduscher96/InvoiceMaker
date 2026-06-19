@@ -371,7 +371,10 @@ function renderItems() {
     div.innerHTML = `
       <div class="item-header">
         <span class="item-label">Item ${idx + 1}</span>
-        ${items.length > 1 ? `<button class="item-remove" data-id="${item.id}">×</button>` : ''}
+        <div style="display:flex;gap:6px;align-items:center">
+          <button class="item-dupe" data-id="${item.id}" title="Duplicate" style="background:none;border:none;color:#bbb;font-size:15px;cursor:pointer;padding:2px 6px;line-height:1">⎘</button>
+          ${items.length > 1 ? `<button class="item-remove" data-id="${item.id}" style="background:none;border:none;color:#ccc;font-size:22px;cursor:pointer;padding:0;line-height:1">×</button>` : ''}
+        </div>
       </div>
       <input class="item-desc" placeholder="Description" value="${escHtml(item.description)}" data-id="${item.id}" data-key="description">
       <div class="item-row">
@@ -386,6 +389,17 @@ function renderItems() {
     el.addEventListener('change', e => {
       const item = items.find(i => i.id == e.target.dataset.id);
       if (item) { item[e.target.dataset.key] = e.target.value; renderItems(); }
+    });
+  });
+  list.querySelectorAll('.item-dupe').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const src = items.find(i => i.id == btn.dataset.id);
+      if (src) {
+        const copy = { id: Date.now() + Math.random(), description: src.description, qty: src.qty, rate: src.rate };
+        const idx = items.indexOf(src);
+        items.splice(idx + 1, 0, copy);
+        renderItems();
+      }
     });
   });
   list.querySelectorAll('.item-remove').forEach(btn => {
@@ -531,8 +545,11 @@ get('generate-btn').addEventListener('click', async () => {
 
     // Scale: canvas pixels -> PDF points
     const scale = pdfW / canvas.width;
-    // How many canvas px fit in one A4 page
-    const pageHeightPx = Math.floor(pdfH / scale);
+    // Margin in PDF points (matches the 48px padding in the HTML = 48*scale but we use fixed 40pt)
+    const margin = 40; // pt — top and bottom margin on every page
+    const contentH = pdfH - margin * 2; // usable height per page
+    // How many canvas px fit in the usable content area per page
+    const pageHeightPx = Math.floor(contentH / scale);
     const totalPages = Math.ceil(canvas.height / pageHeightPx);
 
     for (let page = 0; page < totalPages; page++) {
@@ -546,7 +563,8 @@ get('generate-btn').addEventListener('click', async () => {
         canvas, 0, srcY, canvas.width, srcH,
         0, 0, canvas.width, srcH
       );
-      pdf.addImage(pageCanvas.toDataURL('image/png'), 'PNG', 0, 0, pdfW, srcH * scale);
+      // Place image with top margin; bottom margin is implicit from contentH
+      pdf.addImage(pageCanvas.toDataURL('image/png'), 'PNG', 0, margin, pdfW, srcH * scale);
     }
 
     const filename = `invoice-${val('inv-number') || '001'}.pdf`;
